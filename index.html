@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="theme-color" content="#0F4C5C" />
+    <meta
+      name="description"
+      content="PetAdopt is a modern platform for animal adoption, foster matching, lost-pet recovery, and rescue organization collaboration."
+    />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta property="og:title" content="PetAdopt | Modern Animal Adoption Platform" />
+    <meta
+      property="og:description"
+      content="Adopt, foster, and support rescue organizations in one responsive platform."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/vite.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <title>PetAdopt | Modern Animal Adoption Platform</title>
+    <script>
+      (function () {
+        try {
+          const stored = JSON.parse(localStorage.getItem('petadopt-theme') || '{}');
+          const mode = stored?.state?.theme;
+          if (mode === 'dark' || mode === 'light') {
+            document.documentElement.setAttribute('data-theme', mode);
+          }
+        } catch (error) {
+          // Ignore localStorage parsing errors.
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  ORG
+}
+
+enum ListingType {
+  ADOPTION
+  FOSTER
+  LOST_FOUND
+}
+
+enum PetStatus {
+  PENDING
+  ACTIVE
+  ADOPTED
+  REJECTED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  RESOLVED
+}
+
+enum EmailTokenType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+model User {
+  id                String              @id @default(cuid())
+  name              String
+  email             String              @unique
+  passwordHash      String
+  role              Role                @default(USER)
+  emailVerified     Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  pets              Pet[]               @relation("OwnerPets")
+  savedPets         SavedPet[]
+  adoptionRequests  AdoptionRequest[]   @relation("Requester")
+  sentMessages      Message[]           @relation("SentMessages")
+  receivedMessages  Message[]           @relation("ReceivedMessages")
+  reports           Report[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+  emailTokens       EmailToken[]
+  organizations     OrganizationMember[]
+  donations         Donation[]
+}
+
+model Organization {
+  id          String               @id @default(cuid())
+  name        String               @unique
+  description String?
+  location    String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  members     OrganizationMember[]
+  pets        Pet[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+model Pet {
+  id              String            @id @default(cuid())
+  name            String
+  species         String
+  breed           String
+  age             String
+  ageGroup        String?
+  gender          String
+  size            String
+  location        String
+  latitude        Float?
+  longitude       Float?
+  health          String
+  description     String
+  story           String?
+  listingType     ListingType       @default(ADOPTION)
+  status          PetStatus         @default(PENDING)
+  featured        Boolean           @default(false)
+  ownerId         String
+  organizationId  String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  owner           User              @relation("OwnerPets", fields: [ownerId], references: [id], onDelete: Cascade)
+  organization    Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  photos          PetPhoto[]
+  adoptionRequests AdoptionRequest[]
+  savedBy         SavedPet[]
+  reports         Report[]
+}
+
+model PetPhoto {
+  id        String   @id @default(cuid())
+  petId     String
+  url       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+}
+
+model SavedPet {
+  id        String   @id @default(cuid())
+  userId    String
+  petId     String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, petId])
+}
+
+model AdoptionRequest {
+  id          String        @id @default(cuid())
+  petId        String
+  requesterId  String
+  message      String?
+  status       RequestStatus @default(PENDING)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  pet          Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  requester    User          @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  @@index([petId])
+  @@index([requesterId])
+}
+
+model Message {
+  id                String          @id @default(cuid())
+  adoptionRequestId String
+  senderId          String
+  receiverId        String
+  content           String
+  createdAt         DateTime        @default(now())
+  adoptionRequest   AdoptionRequest @relation(fields: [adoptionRequestId], references: [id], onDelete: Cascade)
+  sender            User            @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver          User            @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  petId        String
+  reporterId   String
+  reason       String
+  details      String?
+  status       ReportStatus @default(OPEN)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  pet          Pet          @relation(fields: [petId], references: [id], onDelete: Cascade)
+  reporter     User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailToken {
+  id        String         @id @default(cuid())
+  userId    String
+  token     String         @unique
+  type      EmailTokenType
+  expiresAt DateTime
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Donation {
+  id          String   @id @default(cuid())
+  userId       String?
+  amountCents  Int
+  currency     String   @default("USD")
+  status       String   @default("COMPLETED")
+  provider     String   @default("TEST")
+  providerRef  String?
+  createdAt    DateTime @default(now())
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
