@@ -4,8 +4,8 @@ services:
     runtime: node
     plan: free
     autoDeployTrigger: commit
-    buildCommand: npm ci && npm run db:push
-    startCommand: npm run server:start
+    buildCommand: npm ci
+    startCommand: npm run db:push && npm run server:start
     healthCheckPath: /api/health
     disk:
       name: petadopt-data
