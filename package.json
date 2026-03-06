@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "dev:full": "concurrently \"npm run server:dev\" \"npm run dev\"",
@@ -15,7 +18,8 @@
     "db:seed": "node prisma/seed.js",
     "db:studio": "prisma studio",
     "check": "npm run lint && npm run build",
-    "deploy:netlify": "npm run build && npx netlify-cli deploy --prod --dir=dist"
+    "deploy:netlify": "npm run build && npx netlify-cli deploy --prod --dir=dist",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.17.1",

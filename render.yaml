@@ -7,24 +7,36 @@ services:
     buildCommand: npm ci
     startCommand: npm run db:push && npm run server:start
     healthCheckPath: /api/health
-    disk:
-      name: petadopt-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        value: file:/var/data/dev.db
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: SERVER_PUBLIC_URL
-        value: https://petadopt-api.onrender.com
+        sync: false
       - key: CLIENT_URL
-        value: https://petadopt.netlify.app
+        sync: false
       - key: CORS_ORIGINS
-        value: https://petadopt.netlify.app
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        value: PetAdopt <no-reply@petadopt.local>
+      - key: VAPID_SUBJECT
+        value: mailto:admin@petadopt.local
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false

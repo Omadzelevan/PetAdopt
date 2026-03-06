@@ -3,7 +3,7 @@
 PetAdopt is a full-stack modern animal adoption platform.
 
 - Frontend: React + Vite + Framer Motion + Zustand
-- Backend: Node.js + Express + Prisma + SQLite
+- Backend: Node.js + Express + Prisma + MongoDB Atlas
 - Real-time: Socket.IO chat for adoption request rooms
 - Deploy target: Netlify (frontend) + Render (API)
 
@@ -42,7 +42,7 @@ The project is no longer mock-only. These are functional end-to-end:
 ### Database
 
 - Prisma schema: `prisma/schema.prisma`
-- Default local DB: SQLite (`file:./dev.db`)
+- Default database: MongoDB Atlas (`mongodb+srv://...`)
 
 ## Quick Start (Local)
 
@@ -58,14 +58,18 @@ npm install
 cp .env.example .env
 ```
 
-3. Push schema and seed:
+3. Provision MongoDB and set `DATABASE_URL` in `.env`.
+
+Atlas note: Prisma MongoDB requires a replica set. MongoDB Atlas clusters provide this by default.
+
+4. Push schema and seed:
 
 ```bash
 npm run db:push
 npm run db:seed
 ```
 
-4. Run frontend + backend together:
+5. Run frontend + backend together:
 
 ```bash
 npm run dev:full
@@ -96,6 +100,11 @@ npm run check
 
 See `.env.example`.
 
+Production templates:
+
+- `.env.render.example` for Render backend env vars
+- `.env.netlify.example` for Netlify frontend env vars
+
 Important keys:
 
 - `DATABASE_URL`
@@ -111,29 +120,56 @@ Important keys:
 
 If SMTP is not configured, verification links are printed in server logs.
 
-## Deploy: Netlify + Render
+## Deploy: Netlify + Render + MongoDB Atlas
 
-## 1) Deploy API to Render
+## 1) Create MongoDB Atlas Database
+
+1. Create an Atlas project and cluster.
+2. Create a database user.
+3. In Network Access, allow Render IPs or use `0.0.0.0/0` during initial setup.
+4. Copy the SRV connection string and set database name, for example:
+
+```bash
+mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/petadopt?retryWrites=true&w=majority&appName=PetAdopt
+```
+
+5. Use that value as `DATABASE_URL` locally and in Render.
+6. If your local `.env` still points to old SQLite, replace it before running Prisma commands.
+
+## 2) Deploy API to Render
 
 `render.yaml` is configured for backend service:
 
 - Service: `petadopt-api`
 - Runtime: Node
-- Build: `npm ci && npm run db:push`
-- Start: `npm run server:start`
+- Build: `npm ci`
+- Start: `npm run db:push && npm run server:start`
 - Health check: `/api/health`
-- Persistent disk mounted at `/var/data`
 
 Steps:
 
 1. Push repo to Git provider.
 2. In Render: **New +** -> **Blueprint**.
 3. Select repo and apply `render.yaml`.
-4. After deploy, note API URL (example: `https://petadopt-api.onrender.com`).
+4. Set required env vars in Render:
 
-## 2) Deploy Frontend to Netlify
+- `DATABASE_URL` = Atlas connection string
+- `SERVER_PUBLIC_URL` = your Render API URL
+- `CLIENT_URL` = your Netlify app URL
+- `CORS_ORIGINS` = comma-separated frontend origins
+- `JWT_SECRET` = generated automatically by blueprint
+- `SMTP_*` and `VAPID_*` = optional but recommended for production features
 
-`netlify.toml` is configured for SPA + headers.
+5. After deploy, open `/api/health`.
+6. Seed production data once if needed:
+
+```bash
+npm run db:seed
+```
+
+## 3) Deploy Frontend to Netlify
+
+`netlify.toml` is configured for SPA routing + security headers.
 
 Set Netlify env vars:
 
@@ -141,7 +177,7 @@ Set Netlify env vars:
 - `VITE_SOCKET_URL=https://YOUR_RENDER_API_DOMAIN`
 - `VITE_VAPID_PUBLIC_KEY=...` (if push enabled)
 
-Then deploy via Git integration or CLI.
+Then deploy via Git integration or CLI. The frontend talks directly to Render through these env vars, so no hardcoded proxy rewrite is required.
 
 CLI example:
 
@@ -158,6 +194,5 @@ npm run deploy:netlify
 ## Notes for Production Hardening
 
 - Donation flow is currently `TEST` provider in backend. Connect Stripe/PayPal for live payments.
-- SQLite is supported and configured with Render disk, but Postgres is recommended for larger scale.
+- Use a strong Atlas password and restrict network access after initial deploy.
 - Add domain-specific CORS values in Render env (`CORS_ORIGINS`).
-

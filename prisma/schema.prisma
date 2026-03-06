@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -44,7 +44,7 @@ enum EmailTokenType {
 }
 
 model User {
-  id                String              @id @default(cuid())
+  id                String              @id @default(auto()) @map("_id") @db.ObjectId
   name              String
   email             String              @unique
   passwordHash      String
@@ -66,7 +66,7 @@ model User {
 }
 
 model Organization {
-  id          String               @id @default(cuid())
+  id          String               @id @default(auto()) @map("_id") @db.ObjectId
   name        String               @unique
   description String?
   location    String?
@@ -77,9 +77,9 @@ model Organization {
 }
 
 model OrganizationMember {
-  id             String       @id @default(cuid())
-  userId         String
-  organizationId String
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String       @db.ObjectId
+  organizationId String       @db.ObjectId
   role           String       @default("member")
   createdAt      DateTime     @default(now())
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -89,7 +89,7 @@ model OrganizationMember {
 }
 
 model Pet {
-  id              String            @id @default(cuid())
+  id              String            @id @default(auto()) @map("_id") @db.ObjectId
   name            String
   species         String
   breed           String
@@ -106,8 +106,8 @@ model Pet {
   listingType     ListingType       @default(ADOPTION)
   status          PetStatus         @default(PENDING)
   featured        Boolean           @default(false)
-  ownerId         String
-  organizationId  String?
+  ownerId         String            @db.ObjectId
+  organizationId  String?           @db.ObjectId
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   owner           User              @relation("OwnerPets", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -119,8 +119,8 @@ model Pet {
 }
 
 model PetPhoto {
-  id        String   @id @default(cuid())
-  petId     String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  petId     String   @db.ObjectId
   url       String
   position  Int      @default(0)
   createdAt DateTime @default(now())
@@ -128,9 +128,9 @@ model PetPhoto {
 }
 
 model SavedPet {
-  id        String   @id @default(cuid())
-  userId    String
-  petId     String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  petId     String   @db.ObjectId
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
@@ -139,9 +139,9 @@ model SavedPet {
 }
 
 model AdoptionRequest {
-  id          String        @id @default(cuid())
-  petId        String
-  requesterId  String
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  petId        String        @db.ObjectId
+  requesterId  String        @db.ObjectId
   message      String?
   status       RequestStatus @default(PENDING)
   createdAt    DateTime      @default(now())
@@ -155,10 +155,10 @@ model AdoptionRequest {
 }
 
 model Message {
-  id                String          @id @default(cuid())
-  adoptionRequestId String
-  senderId          String
-  receiverId        String
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  adoptionRequestId String          @db.ObjectId
+  senderId          String          @db.ObjectId
+  receiverId        String          @db.ObjectId
   content           String
   createdAt         DateTime        @default(now())
   adoptionRequest   AdoptionRequest @relation(fields: [adoptionRequestId], references: [id], onDelete: Cascade)
@@ -167,9 +167,9 @@ model Message {
 }
 
 model Report {
-  id          String       @id @default(cuid())
-  petId        String
-  reporterId   String
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  petId        String       @db.ObjectId
+  reporterId   String       @db.ObjectId
   reason       String
   details      String?
   status       ReportStatus @default(OPEN)
@@ -180,8 +180,8 @@ model Report {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
   title     String
   body      String
   link      String?
@@ -191,8 +191,8 @@ model Notification {
 }
 
 model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
   endpoint  String   @unique
   p256dh    String
   auth      String
@@ -201,8 +201,8 @@ model PushSubscription {
 }
 
 model EmailToken {
-  id        String         @id @default(cuid())
-  userId    String
+  id        String         @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String         @db.ObjectId
   token     String         @unique
   type      EmailTokenType
   expiresAt DateTime
@@ -211,8 +211,8 @@ model EmailToken {
 }
 
 model Donation {
-  id          String   @id @default(cuid())
-  userId       String?
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String?  @db.ObjectId
   amountCents  Int
   currency     String   @default("USD")
   status       String   @default("COMPLETED")
