@@ -143,7 +143,7 @@ mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/petadopt?retryWrites=true&w=majo
 - Service: `petadopt-api`
 - Runtime: Node
 - Build: `npm ci`
-- Start: `npm run db:push && npm run server:start`
+- Start: `npm run server:start`
 - Health check: `/api/health`
 
 Steps:
@@ -161,7 +161,13 @@ Steps:
 - `SMTP_*` and `VAPID_*` = optional but recommended for production features
 
 5. After deploy, open `/api/health`.
-6. Seed production data once if needed:
+6. Push the Prisma schema manually after `DATABASE_URL` is verified and Atlas network access is open:
+
+```bash
+npm run db:push
+```
+
+7. Seed production data once if needed:
 
 ```bash
 npm run db:seed
