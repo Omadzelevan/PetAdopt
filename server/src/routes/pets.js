@@ -11,12 +11,12 @@ import { createNotification } from '../lib/notifications.js';
 
 const router = Router();
 
-function serializePet(pet) {
+function serializePet(pet, request) {
   return {
     ...pet,
     photos: pet.photos?.map((photo) => ({
       ...photo,
-      url: toPublicAssetUrl(photo.url),
+      url: toPublicAssetUrl(photo.url, request),
     })) || [],
   };
 }
@@ -58,13 +58,13 @@ router.get(
       orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
     });
 
-    response.json({ pets: pets.map(serializePet) });
+    response.json({ pets: pets.map((pet) => serializePet(pet, request)) });
   }),
 );
 
 router.get(
   '/featured',
-  asyncHandler(async (_request, response) => {
+  asyncHandler(async (request, response) => {
     const pets = await prisma.pet.findMany({
       where: {
         featured: true,
@@ -79,7 +79,7 @@ router.get(
       take: 6,
     });
 
-    response.json({ pets: pets.map(serializePet) });
+    response.json({ pets: pets.map((pet) => serializePet(pet, request)) });
   }),
 );
 
@@ -101,7 +101,7 @@ router.get(
       orderBy: { createdAt: 'desc' },
     });
 
-    response.json({ pets: saved.map((entry) => serializePet(entry.pet)) });
+    response.json({ pets: saved.map((entry) => serializePet(entry.pet, request)) });
   }),
 );
 
@@ -119,7 +119,7 @@ router.get(
       orderBy: { createdAt: 'desc' },
     });
 
-    response.json({ pets: pets.map(serializePet) });
+    response.json({ pets: pets.map((pet) => serializePet(pet, request)) });
   }),
 );
 
@@ -198,7 +198,7 @@ router.post(
       },
     });
 
-    response.status(201).json({ pet: serializePet(pet) });
+    response.status(201).json({ pet: serializePet(pet, request) });
   }),
 );
 
@@ -230,7 +230,7 @@ router.get(
       throw notFound('Pet not found');
     }
 
-    response.json({ pet: serializePet(pet) });
+    response.json({ pet: serializePet(pet, request) });
   }),
 );
 
@@ -285,7 +285,7 @@ router.patch(
       },
     });
 
-    response.json({ pet: serializePet(updatedPet) });
+    response.json({ pet: serializePet(updatedPet, request) });
   }),
 );
 
