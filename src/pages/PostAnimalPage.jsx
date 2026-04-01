@@ -23,15 +23,26 @@ const initialForm = {
   agree: false,
 };
 
+function buildDescription(form) {
+  const notes = form.notes.trim();
+  const health = form.health.trim();
+
+  if (notes) {
+    return notes;
+  }
+
+  return `Health summary: ${health}`;
+}
+
 function validateStep(step, form) {
   const errors = {};
 
   if (step === 0) {
-    if (!form.name.trim()) {
-      errors.name = 'Name is required.';
+    if (form.name.trim().length < 2) {
+      errors.name = 'Name must be at least 2 characters.';
     }
-    if (!form.breed.trim()) {
-      errors.breed = 'Breed is required.';
+    if (form.breed.trim().length < 2) {
+      errors.breed = 'Breed must be at least 2 characters.';
     }
     if (!form.age.trim()) {
       errors.age = 'Age is required.';
@@ -45,8 +56,14 @@ function validateStep(step, form) {
     errors.photos = 'Upload at least one photo.';
   }
 
-  if (step === 2 && !form.health.trim()) {
-    errors.health = 'Add a health summary.';
+  if (step === 2) {
+    if (form.health.trim().length < 3) {
+      errors.health = 'Health summary must be at least 3 characters.';
+    }
+
+    if (buildDescription(form).trim().length < 10) {
+      errors.notes = 'Add a bit more detail for the listing description.';
+    }
   }
 
   if (step === 3 && !form.agree) {
@@ -172,19 +189,24 @@ export default function PostAnimalPage() {
     setIsSubmitting(true);
 
     try {
+      const description = buildDescription(form);
       const formData = new FormData();
-      formData.append('name', form.name);
-      formData.append('species', form.species);
-      formData.append('breed', form.breed);
-      formData.append('age', form.age);
+      formData.append('name', form.name.trim());
+      formData.append('species', form.species.trim());
+      formData.append('breed', form.breed.trim());
+      formData.append('age', form.age.trim());
       formData.append('ageGroup', inferAgeGroup(form.age));
-      formData.append('gender', form.gender);
-      formData.append('size', form.size);
-      formData.append('location', form.location);
-      formData.append('health', form.health);
-      formData.append('description', form.notes || form.health);
-      formData.append('story', form.notes);
-      formData.append('listingType', form.listingType);
+      formData.append('gender', form.gender.trim());
+      formData.append('size', form.size.trim());
+      formData.append('location', form.location.trim());
+      formData.append('health', form.health.trim());
+      formData.append('description', description);
+
+      if (form.notes.trim()) {
+        formData.append('story', form.notes.trim());
+      }
+
+      formData.append('listingType', form.listingType.trim());
 
       form.photos.forEach((file) => {
         formData.append('photos', file);
@@ -193,8 +215,16 @@ export default function PostAnimalPage() {
       await createPet({ formData, token });
       setSubmitted(true);
     } catch (error) {
+      const fieldErrors = error.details?.fieldErrors;
+
       setErrors((current) => ({
         ...current,
+        name: fieldErrors?.name?.[0] || current.name,
+        breed: fieldErrors?.breed?.[0] || current.breed,
+        age: fieldErrors?.age?.[0] || current.age,
+        location: fieldErrors?.location?.[0] || current.location,
+        health: fieldErrors?.health?.[0] || current.health,
+        notes: fieldErrors?.description?.[0] || current.notes,
         submit: error.message,
       }));
     } finally {
@@ -405,6 +435,7 @@ export default function PostAnimalPage() {
                       rows={4}
                       placeholder="Temperament, behavior around kids, foster notes..."
                     />
+                    {errors.notes ? <small className="error-text">{errors.notes}</small> : null}
                   </label>
                 </div>
               ) : null}
