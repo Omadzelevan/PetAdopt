@@ -60,6 +60,26 @@ export default function AdminPage() {
     }
   }
 
+  async function deletePet(petId, petName) {
+    const confirmed = window.confirm(
+      `Delete "${petName}" permanently? This will remove the listing and its related requests.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/admin/pets/${petId}`, {
+        method: 'DELETE',
+        token,
+      });
+      await loadAdminData();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
   async function updateReportStatus(reportId, status) {
     try {
       await apiRequest(`/reports/admin/${reportId}/status`, {
@@ -157,6 +177,13 @@ export default function AdminPage() {
                       onClick={() => updatePetStatus(pet.id, 'REJECTED')}
                     >
                       Reject
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-link"
+                      onClick={() => deletePet(pet.id, pet.name)}
+                    >
+                      Delete
                     </button>
                   </div>
                 </article>
