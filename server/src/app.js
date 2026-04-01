@@ -36,7 +36,14 @@ app.use(morgan(config.nodeEnv === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use(
+  '/uploads',
+  (_request, response, next) => {
+    response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  },
+  express.static(path.join(process.cwd(), 'uploads')),
+);
 
 app.get('/api/health', (_request, response) => {
   response.json({
