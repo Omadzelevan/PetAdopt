@@ -3,12 +3,16 @@ import { config } from '../config.js';
 
 let transporter = null;
 
+export function isSmtpConfigured() {
+  return Boolean(config.smtp.host && config.smtp.user && config.smtp.pass);
+}
+
 function getTransporter() {
   if (transporter) {
     return transporter;
   }
 
-  if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
+  if (!isSmtpConfigured()) {
     return null;
   }
 
@@ -45,12 +49,21 @@ export async function sendVerificationEmail({ email, name, token }) {
     return { delivered: false, previewUrl: link };
   }
 
-  await activeTransporter.sendMail({
-    from: config.smtp.from,
-    to: email,
-    subject: 'Verify your PetAdopt account',
-    html,
-  });
+  try {
+    await activeTransporter.sendMail({
+      from: config.smtp.from,
+      to: email,
+      subject: 'Verify your PetAdopt account',
+      html,
+    });
 
-  return { delivered: true };
+    return { delivered: true };
+  } catch (error) {
+    console.error('[Email delivery failed, using preview link instead]', {
+      email,
+      message: error instanceof Error ? error.message : String(error),
+    });
+
+    return { delivered: false, previewUrl: link };
+  }
 }

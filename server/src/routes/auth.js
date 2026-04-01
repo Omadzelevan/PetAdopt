@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { signAccessToken } from '../lib/jwt.js';
-import { sendVerificationEmail } from '../lib/mailer.js';
+import { isSmtpConfigured, sendVerificationEmail } from '../lib/mailer.js';
 import { requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { badRequest, conflict, unauthorized } from '../utils/httpError.js';
@@ -27,6 +27,7 @@ router.post(
     }
 
     const { name, email, password } = payload.data;
+    const verificationRequired = isSmtpConfigured();
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -40,36 +41,45 @@ router.post(
         name,
         email,
         passwordHash,
+        emailVerified: !verificationRequired,
       },
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
+        emailVerified: true,
       },
     });
 
-    const token = crypto.randomBytes(32).toString('hex');
+    let mailResult = { delivered: false, previewUrl: undefined };
 
-    await prisma.emailToken.create({
-      data: {
-        userId: user.id,
+    if (verificationRequired) {
+      const token = crypto.randomBytes(32).toString('hex');
+
+      await prisma.emailToken.create({
+        data: {
+          userId: user.id,
+          token,
+          type: 'VERIFY_EMAIL',
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        },
+      });
+
+      mailResult = await sendVerificationEmail({
+        email,
+        name,
         token,
-        type: 'VERIFY_EMAIL',
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-      },
-    });
-
-    const mailResult = await sendVerificationEmail({
-      email,
-      name,
-      token,
-    });
+      });
+    }
 
     response.status(201).json({
       user,
-      message: 'Registration completed. Please verify your email.',
-      verificationPreview: mailResult.delivered ? undefined : mailResult.previewUrl,
+      message: verificationRequired
+        ? 'Registration completed. Please verify your email.'
+        : 'Registration completed. You can sign in now.',
+      verificationPreview:
+        verificationRequired && !mailResult.delivered ? mailResult.previewUrl : undefined,
     });
   }),
 );
@@ -137,8 +147,16 @@ router.post(
       throw unauthorized('Invalid email or password');
     }
 
-    if (!user.emailVerified) {
+    if (!user.emailVerified && isSmtpConfigured()) {
       throw badRequest('Please verify your email before login');
+    }
+
+    if (!user.emailVerified) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerified: true },
+      });
+      user.emailVerified = true;
     }
 
     const accessToken = signAccessToken(user);
@@ -182,6 +200,16 @@ router.post(
 
     if (user.emailVerified) {
       response.json({ message: 'Email is already verified.' });
+      return;
+    }
+
+    if (!isSmtpConfigured()) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerified: true },
+      });
+
+      response.json({ message: 'Email verification is disabled. Your account is ready.' });
       return;
     }
 
