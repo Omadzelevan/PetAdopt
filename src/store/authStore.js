@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { apiRequest } from '../lib/api';
 
 export const useAuthStore = create(
@@ -52,6 +52,7 @@ export const useAuthStore = create(
     }),
     {
       name: 'petadopt-auth',
+      storage: createJSONStorage(() => sessionStorage),
       onRehydrateStorage: () => (state) => {
         state?.setHydrated();
       },

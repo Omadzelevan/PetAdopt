@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { adoptionStats, howItWorksSteps } from '../data/pets';
+import { howItWorksSteps } from '../data/pets';
 import { AnimatedCounter } from '../components/AnimatedCounter';
 import { MagneticButton } from '../components/MagneticButton';
 import { PageTransition } from '../components/PageTransition';
@@ -11,20 +11,15 @@ import { usePetStore } from '../store/petStore';
 const heroTitle = 'Give Them a Second Chance';
 
 export default function HomePage() {
-  const pets = usePetStore((state) => state.pets);
-  const initialized = usePetStore((state) => state.initialized);
-  const fetchPets = usePetStore((state) => state.fetchPets);
+  const featuredPets = usePetStore((state) => state.featuredPets);
+  const stats = usePetStore((state) => state.stats);
+  const featuredLoading = usePetStore((state) => state.featuredLoading);
+  const fetchFeaturedPets = usePetStore((state) => state.fetchFeaturedPets);
+  const fetchPetStats = usePetStore((state) => state.fetchPetStats);
 
   useEffect(() => {
-    if (!initialized) {
-      fetchPets();
-    }
-  }, [fetchPets, initialized]);
-
-  const featuredPets = useMemo(
-    () => pets.filter((pet) => pet.featured).slice(0, 6),
-    [pets],
-  );
+    void Promise.all([fetchFeaturedPets(), fetchPetStats()]);
+  }, [fetchFeaturedPets, fetchPetStats]);
 
   return (
     <PageTransition>
@@ -62,30 +57,30 @@ export default function HomePage() {
         <div className="hero-metrics">
           <article className="metric-card">
             <p className="metric-value">
-              <AnimatedCounter from={3200} to={adoptionStats.liveAdoptions} duration={2.4} />
+              <AnimatedCounter from={0} to={stats.activeListings} duration={2.4} />
             </p>
-            <p className="metric-label">Successful adoptions</p>
+            <p className="metric-label">Active listings</p>
           </article>
 
           <article className="metric-card">
             <p className="metric-value">
-              <AnimatedCounter from={700} to={adoptionStats.fosterHomes} duration={2.1} />
+              <AnimatedCounter from={0} to={stats.featuredPets} duration={2.1} />
             </p>
-            <p className="metric-label">Active foster homes</p>
+            <p className="metric-label">Featured listings</p>
           </article>
 
           <article className="metric-card">
             <p className="metric-value">
-              <AnimatedCounter from={540} to={adoptionStats.reunions} duration={2.1} />
+              <AnimatedCounter from={0} to={stats.fosterListings} duration={2.1} />
             </p>
-            <p className="metric-label">Lost pets reunited</p>
+            <p className="metric-label">Foster listings</p>
           </article>
 
           <article className="metric-card">
             <p className="metric-value">
-              <AnimatedCounter from={30} to={adoptionStats.partnerOrganizations} duration={2.1} />
+              <AnimatedCounter from={0} to={stats.lostFoundListings} duration={2.1} />
             </p>
-            <p className="metric-label">Partner organizations</p>
+            <p className="metric-label">Lost & found alerts</p>
           </article>
         </div>
       </section>
@@ -99,9 +94,13 @@ export default function HomePage() {
         </div>
 
         <div className="pet-grid">
-          {featuredPets.map((pet) => (
-            <PetCard key={pet.id} pet={pet} />
-          ))}
+          {featuredLoading && featuredPets.length === 0
+            ? Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="metric-card">
+                  Loading featured pets...
+                </div>
+              ))
+            : featuredPets.map((pet) => <PetCard key={pet.id} pet={pet} />)}
         </div>
       </Reveal>
 
@@ -123,12 +122,12 @@ export default function HomePage() {
       </RevealStagger>
 
       <Reveal className="section-card counter-block">
-        <h2>Live Adoption Counter</h2>
+        <h2>Partner Network</h2>
         <p className="counter-value">
-          <AnimatedCounter from={3000} to={adoptionStats.liveAdoptions} duration={2.8} />+
+          <AnimatedCounter from={0} to={stats.partnerOrganizations} duration={2.8} />+
         </p>
         <p className="counter-copy">
-          Animals already matched with loving homes through the PetAdopt community.
+          Rescue organizations already connected through the PetAdopt network.
         </p>
 
         <div className="counter-actions">

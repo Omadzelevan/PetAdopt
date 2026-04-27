@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { PetStatus, Role } from '@prisma/client';
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
@@ -7,39 +5,11 @@ import { createNotification } from '../lib/notifications.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { badRequest, notFound } from '../utils/httpError.js';
+import { deleteUploadedFiles } from '../utils/petPhotos.js';
 
 const router = Router();
-const uploadDir = path.join(process.cwd(), 'uploads');
 
 router.use(requireAuth, requireRole(Role.ADMIN));
-
-async function deleteUploadedFile(url) {
-  if (
-    !url ||
-    url.startsWith('http://') ||
-    url.startsWith('https://') ||
-    url.startsWith('data:')
-  ) {
-    return;
-  }
-
-  const fileName = path.basename(url);
-
-  if (!fileName) {
-    return;
-  }
-
-  try {
-    await fs.unlink(path.join(uploadDir, fileName));
-  } catch (error) {
-    if (error?.code !== 'ENOENT') {
-      console.error('Failed to delete uploaded pet image', {
-        url,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-}
 
 router.get(
   '/pets',
@@ -150,7 +120,7 @@ router.delete(
       });
     });
 
-    await Promise.allSettled(pet.photos.map((photo) => deleteUploadedFile(photo.url)));
+    await deleteUploadedFiles(pet.photos.map((photo) => photo.url));
 
     response.json({ ok: true });
   }),

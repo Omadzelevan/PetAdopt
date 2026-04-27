@@ -47,6 +47,10 @@ export default function DonatePage() {
     try {
       const amountCents = Math.round(Number(amount) * 100);
 
+      if (!Number.isFinite(amountCents) || amountCents < 100) {
+        throw new Error('Please enter at least 1.00 in the selected currency.');
+      }
+
       await apiRequest('/donations', {
         method: 'POST',
         token,
@@ -58,7 +62,7 @@ export default function DonatePage() {
 
       const response = await apiRequest('/donations/my', { token });
       setHistory(response.donations || []);
-      setMessage('Donation recorded successfully. Thank you for supporting rescue work.');
+      setMessage('Test donation recorded successfully. Thank you for supporting rescue work.');
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -71,7 +75,10 @@ export default function DonatePage() {
       <section className="section-card section-block">
         <div className="section-heading">
           <h2>Support Rescue Work</h2>
-          <p>Donations are tracked in your account and linked to moderation-safe records.</p>
+          <p>
+            Donations are currently recorded in secure test mode until a live payment
+            provider is connected.
+          </p>
         </div>
 
         {!token ? (

@@ -4,6 +4,11 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { createNotification } from '../lib/notifications.js';
 import { requireAuth } from '../middleware/auth.js';
+import {
+  canSubmitRequestForListing,
+  getAutoRejectedRequestIds,
+  isRequestStatusChangeAllowed,
+} from '../utils/adoptionRules.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { badRequest, forbidden, notFound } from '../utils/httpError.js';
 
@@ -28,8 +33,8 @@ router.post(
 
     const pet = await prisma.pet.findUnique({ where: { id: petId } });
 
-    if (!pet || pet.status !== 'ACTIVE') {
-      throw badRequest('Pet is not available for adoption');
+    if (!pet || pet.status !== 'ACTIVE' || !canSubmitRequestForListing(pet.listingType)) {
+      throw badRequest('This listing is not available for adoption requests');
     }
 
     if (pet.ownerId === request.user.id) {
@@ -171,13 +176,48 @@ router.patch(
       throw forbidden('You are not allowed to change this request status');
     }
 
+    if (!isRequestStatusChangeAllowed(adoptionRequest.status, status)) {
+      throw badRequest('Only pending requests can be approved or rejected');
+    }
+
+    const relatedPendingRequests =
+      status === RequestStatus.APPROVED
+        ? await prisma.adoptionRequest.findMany({
+            where: {
+              petId: adoptionRequest.petId,
+              status: RequestStatus.PENDING,
+            },
+            select: {
+              id: true,
+              requesterId: true,
+              status: true,
+            },
+          })
+        : [];
+
+    const closedRequestIds =
+      status === RequestStatus.APPROVED
+        ? getAutoRejectedRequestIds(relatedPendingRequests, adoptionRequest.id)
+        : [];
+
     const updated = await prisma.$transaction(async (transaction) => {
       const updatedRequest = await transaction.adoptionRequest.update({
         where: { id: adoptionRequest.id },
         data: { status },
       });
 
-      if (status === 'APPROVED') {
+      if (status === RequestStatus.APPROVED) {
+        if (closedRequestIds.length > 0) {
+          await transaction.adoptionRequest.updateMany({
+            where: {
+              id: {
+                in: closedRequestIds,
+              },
+            },
+            data: { status: RequestStatus.REJECTED },
+          });
+        }
+
         await transaction.pet.update({
           where: { id: adoptionRequest.petId },
           data: { status: 'ADOPTED' },
@@ -194,7 +234,22 @@ router.patch(
       link: '/dashboard',
     });
 
-    response.json({ request: updated });
+    const autoRejectedRequests = relatedPendingRequests.filter((request) =>
+      closedRequestIds.includes(request.id),
+    );
+
+    await Promise.allSettled(
+      autoRejectedRequests.map((request) =>
+        createNotification({
+          userId: request.requesterId,
+          title: 'Adoption request updated',
+          body: `${adoptionRequest.pet.name} is no longer available`,
+          link: '/dashboard',
+        }),
+      ),
+    );
+
+    response.json({ request: updated, closedRequestIds });
   }),
 );
 

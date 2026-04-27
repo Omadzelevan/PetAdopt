@@ -10,6 +10,7 @@
     "dev": "vite",
     "dev:full": "concurrently \"npm run server:dev\" \"npm run dev\"",
     "build": "vite build",
+    "test": "node --test",
     "lint": "eslint .",
     "preview": "vite preview",
     "server:dev": "node --watch server/src/index.js",
@@ -17,7 +18,7 @@
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
     "db:studio": "prisma studio",
-    "check": "npm run lint && npm run build",
+    "check": "npm run lint && npm run test && npm run build",
     "deploy:netlify": "npm run build && npx netlify-cli deploy --prod --dir=dist",
     "postinstall": "prisma generate"
   },

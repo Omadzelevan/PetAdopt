@@ -178,14 +178,31 @@ export default function DashboardPage() {
 
   async function updateRequestStatus(requestId, status) {
     try {
-      await apiRequest(`/adoptions/${requestId}/status`, {
+      const response = await apiRequest(`/adoptions/${requestId}/status`, {
         method: 'PATCH',
         token,
         body: { status },
       });
 
+      const closedRequestIds = response.closedRequestIds || [];
+
       setReceivedRequests((current) =>
-        current.map((item) => (item.id === requestId ? { ...item, status } : item)),
+        current.map((item) => {
+          if (item.id === requestId) {
+            return { ...item, status };
+          }
+
+          if (closedRequestIds.includes(item.id)) {
+            return { ...item, status: 'REJECTED' };
+          }
+
+          return item;
+        }),
+      );
+      setMyRequests((current) =>
+        current.map((item) =>
+          closedRequestIds.includes(item.id) ? { ...item, status: 'REJECTED' } : item,
+        ),
       );
     } catch (requestError) {
       setError(requestError.message);

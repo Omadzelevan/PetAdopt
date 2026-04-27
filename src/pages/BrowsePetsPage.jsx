@@ -1,11 +1,10 @@
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useDeferredValue, useEffect, useState } from 'react';
 import { MagneticButton } from '../components/MagneticButton';
 import { PageTransition } from '../components/PageTransition';
 import { PetCard } from '../components/PetCard';
 import { SkeletonCard } from '../components/SkeletonCard';
 import { usePetStore } from '../store/petStore';
-import { filterPets, uniqueValues } from '../utils/filterPets';
 
 const ageOptions = [
   { value: 'all', label: 'All Ages' },
@@ -27,47 +26,49 @@ const listingTypeOptions = [
 export default function BrowsePetsPage() {
   const pets = usePetStore((state) => state.pets);
   const filters = usePetStore((state) => state.filters);
+  const facets = usePetStore((state) => state.facets);
+  const page = usePetStore((state) => state.page);
+  const totalCount = usePetStore((state) => state.totalCount);
+  const totalPages = usePetStore((state) => state.totalPages);
+  const loading = usePetStore((state) => state.loading);
+  const error = usePetStore((state) => state.error);
   const setFilter = usePetStore((state) => state.setFilter);
   const resetFilters = usePetStore((state) => state.resetFilters);
+  const setPage = usePetStore((state) => state.setPage);
+  const fetchPets = usePetStore((state) => state.fetchPets);
+  const fetchFacets = usePetStore((state) => state.fetchFacets);
 
   const [showFilters, setShowFilters] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const loadingTimerRef = useRef(null);
-
-  const filteredPets = useMemo(() => filterPets(pets, filters), [pets, filters]);
-  const breeds = useMemo(() => uniqueValues(pets, 'breed'), [pets]);
-  const locations = useMemo(() => uniqueValues(pets, 'location'), [pets]);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const deferredSearch = useDeferredValue(searchInput);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setLoading(false), 280);
-    return () => window.clearTimeout(timeout);
-  }, []);
+    void fetchFacets();
+  }, [fetchFacets]);
 
-  useEffect(
-    () => () => {
-      if (loadingTimerRef.current) {
-        window.clearTimeout(loadingTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  function runLoadingTransition() {
-    setLoading(true);
-    if (loadingTimerRef.current) {
-      window.clearTimeout(loadingTimerRef.current);
+  useEffect(() => {
+    if (deferredSearch !== filters.search) {
+      startTransition(() => {
+        setFilter('search', deferredSearch.trim());
+      });
     }
-    loadingTimerRef.current = window.setTimeout(() => setLoading(false), 220);
-  }
+  }, [deferredSearch, filters.search, setFilter]);
+
+  useEffect(() => {
+    void fetchPets();
+  }, [fetchPets, filters, page]);
 
   function updateFilter(key, value) {
-    setFilter(key, value);
-    runLoadingTransition();
+    startTransition(() => {
+      setFilter(key, value);
+    });
   }
 
   function clearFilters() {
-    resetFilters();
-    runLoadingTransition();
+    setSearchInput('');
+    startTransition(() => {
+      resetFilters();
+    });
   }
 
   return (
@@ -97,6 +98,16 @@ export default function BrowsePetsPage() {
           aria-label="Pet filters"
         >
           <div className="filter-row">
+            <label htmlFor="search">Search</label>
+            <input
+              id="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Name, breed, location..."
+            />
+          </div>
+
+          <div className="filter-row">
             <label htmlFor="listingType">Listing Type</label>
             <select
               id="listingType"
@@ -119,7 +130,7 @@ export default function BrowsePetsPage() {
               onChange={(event) => updateFilter('breed', event.target.value)}
             >
               <option value="all">All Breeds</option>
-              {breeds.map((breed) => (
+              {facets.breeds.map((breed) => (
                 <option key={breed} value={breed}>
                   {breed}
                 </option>
@@ -180,7 +191,7 @@ export default function BrowsePetsPage() {
               onChange={(event) => updateFilter('location', event.target.value)}
             >
               <option value="all">All Locations</option>
-              {locations.map((location) => (
+              {facets.locations.map((location) => (
                 <option key={location} value={location}>
                   {location}
                 </option>
@@ -196,22 +207,26 @@ export default function BrowsePetsPage() {
         <section className="browse-content section-card">
           <div className="results-head">
             <p>
-              Showing <strong>{filteredPets.length}</strong> pets
+              Showing <strong>{totalCount}</strong> pets
             </p>
-            <p>Grid updates with smooth animated transitions on every filter change.</p>
+            <p>
+              {loading
+                ? 'Refreshing results from live listings...'
+                : 'Filters now query the live backend, with search and paging included.'}
+            </p>
           </div>
+
+          {error ? <p className="error-text">{error}</p> : null}
 
           <LayoutGroup>
             <motion.div layout className="pet-grid browse-grid">
-              {loading
-                ? Array.from({ length: 6 }).map((_, index) => (
-                    <SkeletonCard key={index} />
-                  ))
+              {loading && pets.length === 0
+                ? Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)
                 : null}
 
-              {!loading ? (
+              {!loading || pets.length > 0 ? (
                 <AnimatePresence>
-                  {filteredPets.map((pet) => (
+                  {pets.map((pet) => (
                     <motion.div
                       key={pet.id}
                       layout
@@ -228,15 +243,37 @@ export default function BrowsePetsPage() {
             </motion.div>
           </LayoutGroup>
 
-          {!loading && filteredPets.length === 0 ? (
+          {!loading && pets.length === 0 ? (
             <div className="empty-state">
               <h3>No pets matched these filters</h3>
-              <p>Try broadening location or age filters to see more companions.</p>
+              <p>Try broadening your search or clearing some filters.</p>
               <MagneticButton onClick={clearFilters} variant="primary" size="sm">
                 Clear Filters
               </MagneticButton>
             </div>
           ) : null}
+
+          <div className="inline-actions" style={{ marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="inline-link"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page <= 1 || loading}
+            >
+              Previous Page
+            </button>
+            <span className="status-pill">
+              Page {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className="inline-link"
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page >= totalPages || loading}
+            >
+              Next Page
+            </button>
+          </div>
         </section>
       </div>
     </PageTransition>

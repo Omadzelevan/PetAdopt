@@ -33,7 +33,11 @@ export function toPublicAssetUrl(url, request) {
 }
 
 export function normalizePhotoInput(photos, uploadedFiles = []) {
-  const inputList = Array.isArray(photos) ? photos : [];
+  const inputList = Array.isArray(photos)
+    ? photos
+    : typeof photos === 'undefined' || photos === null || photos === ''
+      ? []
+      : [photos];
 
   const fromInput = inputList
     .map((item) => {
