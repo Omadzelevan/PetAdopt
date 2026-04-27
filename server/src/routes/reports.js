@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { createNotification } from '../lib/notifications.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { badRequest, notFound } from '../utils/httpError.js';
+import { badRequest, conflict, notFound } from '../utils/httpError.js';
 
 const router = Router();
 
@@ -29,6 +29,22 @@ router.post(
 
     if (!pet) {
       throw notFound('Pet not found');
+    }
+
+    if (pet.ownerId === request.user.id) {
+      throw badRequest('You cannot report your own listing');
+    }
+
+    const existing = await prisma.report.findFirst({
+      where: {
+        petId: payload.data.petId,
+        reporterId: request.user.id,
+        status: ReportStatus.OPEN,
+      },
+    });
+
+    if (existing) {
+      throw conflict('You already have an open report for this listing');
     }
 
     const report = await prisma.report.create({

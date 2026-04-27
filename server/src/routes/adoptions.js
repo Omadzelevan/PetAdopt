@@ -100,6 +100,13 @@ router.get(
             name: true,
             breed: true,
             location: true,
+            listingType: true,
+            owner: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -125,6 +132,9 @@ router.get(
           select: {
             id: true,
             name: true,
+            breed: true,
+            location: true,
+            listingType: true,
           },
         },
         requester: {

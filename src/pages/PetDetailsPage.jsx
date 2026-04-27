@@ -344,7 +344,10 @@ export default function PetDetailsPage() {
           ) : null}
 
           {showRequestForm ? (
-            <form className="chat-form" onSubmit={handleAdoptionRequest}>
+            <form className="chat-form details-action-form" onSubmit={handleAdoptionRequest}>
+              <p className="details-form-label">
+                Introduce your home, timing, or foster setup in a few clear sentences.
+              </p>
               <textarea
                 value={requestMessage}
                 onChange={(event) => setRequestMessage(event.target.value)}
@@ -370,7 +373,10 @@ export default function PetDetailsPage() {
           ) : null}
 
           {showReportForm ? (
-            <form className="chat-form" onSubmit={handleReport}>
+            <form className="chat-form details-action-form" onSubmit={handleReport}>
+              <p className="details-form-label">
+                Reports go to moderation. Share what looks inaccurate, unsafe, or suspicious.
+              </p>
               <input
                 value={reportReason}
                 onChange={(event) => setReportReason(event.target.value)}

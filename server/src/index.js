@@ -121,7 +121,7 @@ io.on('connection', (socket) => {
       include: {
         sender: {
           select: {
-            id: true,
+            id:true,
             name: true,
           },
         },

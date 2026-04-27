@@ -49,6 +49,11 @@ export const useAuthStore = create(
           method: 'POST',
           body: { token },
         }),
+      resendVerification: async (email) =>
+        apiRequest('/auth/resend-verification', {
+          method: 'POST',
+          body: { email },
+        }),
     }),
     {
       name: 'petadopt-auth',

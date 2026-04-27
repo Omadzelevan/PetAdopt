@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { PageTransition } from '../components/PageTransition';
 import { API_ORIGIN, apiRequest } from '../lib/api';
+import { getListingMetaLabel } from '../lib/petPresentation';
 import { enablePushNotifications } from '../lib/pushClient';
 import { useAuthStore } from '../store/authStore';
 
@@ -15,7 +16,40 @@ const tabs = [
   { id: 'notifications', label: 'Notifications' },
 ];
 
+const tabCopy = {
+  posted: {
+    title: 'My Posted Pets',
+    description: 'Track moderation status, listing visibility, and the next action for each post.',
+  },
+  messages: {
+    title: 'Messages',
+    description: 'Keep adoption and foster conversations in one place instead of scattered chats.',
+  },
+  saved: {
+    title: 'Saved Pets',
+    description: 'Revisit strong matches quickly when you are ready to follow up.',
+  },
+  requests: {
+    title: 'Adoption Requests',
+    description: 'Review incoming applicants and monitor every request you have already sent.',
+  },
+  notifications: {
+    title: 'Notifications',
+    description: 'Stay current on moderation changes, request updates, and unread alerts.',
+  },
+};
+
 const socketUrl = import.meta.env.VITE_SOCKET_URL || API_ORIGIN;
+
+function formatPetLine(pet) {
+  return [getListingMetaLabel(pet), pet?.breed, pet?.location].filter(Boolean).join(' | ');
+}
+
+function formatRequestLabel(request) {
+  const listing = request.pet?.name || 'Pet';
+  const counterpart = request.requester?.name || request.pet?.owner?.name || 'Participant';
+  return `${listing} | ${counterpart} | ${request.status}`;
+}
 
 export default function DashboardPage() {
   const token = useAuthStore((state) => state.token);
@@ -36,7 +70,54 @@ export default function DashboardPage() {
   const [messageInput, setMessageInput] = useState('');
   const [pushEnabled, setPushEnabled] = useState(false);
 
-  const messageCount = notifications.filter((item) => !item.isRead).length;
+  const unreadNotificationCount = notifications.filter((item) => !item.isRead).length;
+
+  const requestOptions = useMemo(
+    () =>
+      [...receivedRequests, ...myRequests].map((item) => ({
+        id: item.id,
+        label: formatRequestLabel(item),
+      })),
+    [myRequests, receivedRequests],
+  );
+
+  const dashboardStats = useMemo(
+    () => [
+      {
+        label: 'Active listings',
+        value: postedPets.length,
+        helper: 'Posts you currently manage',
+      },
+      {
+        label: 'Saved pets',
+        value: savedPets.length,
+        helper: 'Profiles you bookmarked',
+      },
+      {
+        label: 'Pending requests',
+        value: [...receivedRequests, ...myRequests].filter((item) => item.status === 'PENDING')
+          .length,
+        helper: 'Requests awaiting action',
+      },
+      {
+        label: 'Unread alerts',
+        value: unreadNotificationCount,
+        helper: 'Notifications that still need attention',
+      },
+    ],
+    [myRequests, postedPets.length, receivedRequests, savedPets.length, unreadNotificationCount],
+  );
+
+  useEffect(() => {
+    if (requestOptions.length === 0) {
+      setActiveRequestId('');
+      return;
+    }
+
+    setActiveRequestId((current) =>
+      requestOptions.some((option) => option.id === current) ? current : requestOptions[0].id,
+    );
+  }, [requestOptions]);
 
   useEffect(() => {
     if (!token) {
@@ -67,13 +148,6 @@ export default function DashboardPage() {
         setReceivedRequests(received.requests || []);
         setMyRequests(mine.requests || []);
         setNotifications(incomingNotifications.notifications || []);
-
-        const firstRequestId =
-          (received.requests && received.requests[0]?.id) ||
-          (mine.requests && mine.requests[0]?.id) ||
-          '';
-
-        setActiveRequestId((current) => current || firstRequestId);
       } catch (requestError) {
         if (!ignore) {
           setError(requestError.message);
@@ -146,15 +220,6 @@ export default function DashboardPage() {
       socket.disconnect();
     };
   }, [activeRequestId, token]);
-
-  const requestOptions = useMemo(
-    () =>
-      [...receivedRequests, ...myRequests].map((item) => ({
-        id: item.id,
-        label: `${item.pet?.name || 'Pet'} | ${item.requester?.name || 'Applicant'} | ${item.status}`,
-      })),
-    [myRequests, receivedRequests],
-  );
 
   async function sendMessage(event) {
     event.preventDefault();
@@ -249,6 +314,8 @@ export default function DashboardPage() {
     );
   }
 
+  const activeCopy = tabCopy[activeTab];
+
   return (
     <PageTransition>
       <div className="dashboard-layout">
@@ -258,10 +325,24 @@ export default function DashboardPage() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.35 }}
         >
-          <h1>Dashboard</h1>
-          <p>
-            Logged in as <strong>{user?.name || 'User'}</strong>
-          </p>
+          <div className="dashboard-hero">
+            <p className="eyebrow">Rescue Workspace</p>
+            <h1>Dashboard</h1>
+            <div className="dashboard-identity">
+              <strong>{user?.name || 'User'}</strong>
+              <span>{user?.email || 'Signed in'}</span>
+            </div>
+          </div>
+
+          <div className="dashboard-summary-grid">
+            {dashboardStats.map((item) => (
+              <article key={item.label} className="dashboard-summary-card">
+                <strong>{item.value}</strong>
+                <span>{item.label}</span>
+                <p>{item.helper}</p>
+              </article>
+            ))}
+          </div>
 
           <nav className="dashboard-tabs" aria-label="Dashboard tabs">
             {tabs.map((tab) => (
@@ -272,8 +353,8 @@ export default function DashboardPage() {
                 onClick={() => setActiveTab(tab.id)}
               >
                 <span>{tab.label}</span>
-                {tab.id === 'notifications' && messageCount > 0 ? (
-                  <span className="badge-bounce">{messageCount}</span>
+                {tab.id === 'notifications' && unreadNotificationCount > 0 ? (
+                  <span className="badge-bounce">{unreadNotificationCount}</span>
                 ) : null}
               </button>
             ))}
@@ -281,21 +362,29 @@ export default function DashboardPage() {
 
           <div className="feature-grid">
             <article>
-              <h3>Real-time Chat</h3>
-              <p>Socket channel is active for each adoption request room.</p>
+              <h3>Real-time coordination</h3>
+              <p>Every request room stays synced with instant chat and request status changes.</p>
             </article>
             <article>
-              <h3>Push & In-app Alerts</h3>
-              <p>Notification records are persisted and synced in the dashboard.</p>
+              <h3>Moderation visibility</h3>
+              <p>Posted animals keep their status history visible so nothing stalls silently.</p>
             </article>
             <article>
-              <h3>Moderation-ready</h3>
-              <p>Requests and reports are linked to admin review workflows.</p>
+              <h3>Rescue follow-up</h3>
+              <p>Saved pets, alerts, and notifications stay in one place for faster responses.</p>
             </article>
           </div>
         </motion.aside>
 
         <section className="section-card dashboard-content">
+          <div className="dashboard-panel-head">
+            <div>
+              <p className="eyebrow">Current Section</p>
+              <h2>{activeCopy.title}</h2>
+              <p className="dashboard-microcopy">{activeCopy.description}</p>
+            </div>
+          </div>
+
           {loading ? <p>Loading dashboard data...</p> : null}
           {error ? <p className="error-text">{error}</p> : null}
 
@@ -307,20 +396,33 @@ export default function DashboardPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
               >
-                <h2>My Posted Pets</h2>
                 <div className="list-stack">
                   {postedPets.map((item) => (
-                    <article key={item.id} className="list-item">
+                    <article key={item.id} className="list-item list-item-rich">
                       <div>
                         <h3>{item.name}</h3>
-                        <p>
-                          {item.breed} | {item.location}
+                        <p>{formatPetLine(item)}</p>
+                        <p className="list-item-submeta">
+                          Moderation updates and adoption activity will appear here first.
                         </p>
                       </div>
-                      <span className="status-pill">{item.status}</span>
+                      <div className="inline-actions">
+                        <span className="status-pill">{item.status}</span>
+                        <Link className="inline-link" to={`/pets/${item.id}`}>
+                          Open listing
+                        </Link>
+                      </div>
                     </article>
                   ))}
-                  {postedPets.length === 0 ? <p>No listings yet.</p> : null}
+                  {postedPets.length === 0 ? (
+                    <div className="dashboard-empty-state">
+                      <h3>No listings yet</h3>
+                      <p>Publish your first rescue profile to start receiving requests.</p>
+                      <Link className="inline-link" to="/post">
+                        Create a listing
+                      </Link>
+                    </div>
+                  ) : null}
                 </div>
               </motion.div>
             ) : null}
@@ -332,11 +434,9 @@ export default function DashboardPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
               >
-                <h2>Messages</h2>
-
                 {requestOptions.length > 0 ? (
-                  <label className="filter-row" htmlFor="requestRoom">
-                    Select request room
+                  <label className="filter-row request-room-card" htmlFor="requestRoom">
+                    <span>Conversation room</span>
                     <select
                       id="requestRoom"
                       value={activeRequestId}
@@ -350,19 +450,31 @@ export default function DashboardPage() {
                     </select>
                   </label>
                 ) : (
-                  <p>No request conversations yet.</p>
+                  <div className="dashboard-empty-state">
+                    <h3>No request conversations yet</h3>
+                    <p>When a request is started, its dedicated chat room will appear here.</p>
+                  </div>
                 )}
 
                 {activeRequestId ? (
                   <>
                     <div className="chat-box">
                       {messages.map((message) => (
-                        <article key={message.id} className="chat-item">
-                          <p>
-                            <strong>{message.sender?.name || 'User'}:</strong> {message.content}
-                          </p>
+                        <article
+                          key={message.id}
+                          className={
+                            message.senderId === user?.id ? 'chat-item is-mine' : 'chat-item'
+                          }
+                        >
+                          <p className="chat-meta">{message.sender?.name || 'User'}</p>
+                          <p>{message.content}</p>
                         </article>
                       ))}
+                      {messages.length === 0 ? (
+                        <p className="dashboard-microcopy">
+                          No messages yet. Start the conversation with a short update.
+                        </p>
+                      ) : null}
                     </div>
 
                     <form className="chat-form" onSubmit={sendMessage}>
@@ -387,23 +499,34 @@ export default function DashboardPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
               >
-                <h2>Saved Pets</h2>
                 {savedPets.length > 0 ? (
                   <div className="list-stack">
                     {savedPets.map((pet) => (
-                      <article key={pet.id} className="list-item">
+                      <article key={pet.id} className="list-item list-item-rich">
                         <div>
                           <h3>{pet.name}</h3>
-                          <p>
-                            {pet.breed} | {pet.location}
+                          <p>{formatPetLine(pet)}</p>
+                          <p className="list-item-submeta">
+                            Saved for later follow-up or comparison.
                           </p>
                         </div>
-                        <span className="status-pill">Saved</span>
+                        <div className="inline-actions">
+                          <span className="status-pill">Saved</span>
+                          <Link className="inline-link" to={`/pets/${pet.id}`}>
+                            Open listing
+                          </Link>
+                        </div>
                       </article>
                     ))}
                   </div>
                 ) : (
-                  <p>No saved pets yet.</p>
+                  <div className="dashboard-empty-state">
+                    <h3>No saved pets yet</h3>
+                    <p>Use the save action in browse to keep strong matches within reach.</p>
+                    <Link className="inline-link" to="/pets">
+                      Browse pets
+                    </Link>
+                  </div>
                 )}
               </motion.div>
             ) : null}
@@ -414,53 +537,84 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
+                className="dashboard-actions-grid"
               >
-                <h2>Adoption Requests</h2>
-                <h3>Incoming Requests</h3>
-                <div className="list-stack">
-                  {receivedRequests.map((request) => (
-                    <article key={request.id} className="list-item">
-                      <div>
-                        <h3>
-                          {request.pet?.name} | {request.requester?.name}
-                        </h3>
-                        <p>{request.message || 'No message provided.'}</p>
-                      </div>
+                <div>
+                  <h3>Incoming Requests</h3>
+                  <div className="list-stack">
+                    {receivedRequests.map((request) => (
+                      <article key={request.id} className="list-item list-item-rich">
+                        <div>
+                          <h3>
+                            {request.pet?.name} | {request.requester?.name}
+                          </h3>
+                          <p>{formatPetLine(request.pet)}</p>
+                          <p className="list-item-submeta">
+                            {request.message || 'No message provided yet.'}
+                          </p>
+                        </div>
 
-                      <div className="inline-actions">
-                        <span className="status-pill">{request.status}</span>
-                        <button
-                          type="button"
-                          className="inline-link"
-                          onClick={() => updateRequestStatus(request.id, 'APPROVED')}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-link"
-                          onClick={() => updateRequestStatus(request.id, 'REJECTED')}
-                        >
-                          Reject
-                        </button>
+                        <div className="inline-actions">
+                          <span className="status-pill">{request.status}</span>
+                          <Link className="inline-link" to={`/pets/${request.pet?.id}`}>
+                            Open listing
+                          </Link>
+                          <button
+                            type="button"
+                            className="inline-link"
+                            disabled={request.status !== 'PENDING'}
+                            onClick={() => updateRequestStatus(request.id, 'APPROVED')}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-link"
+                            disabled={request.status !== 'PENDING'}
+                            onClick={() => updateRequestStatus(request.id, 'REJECTED')}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                    {receivedRequests.length === 0 ? (
+                      <div className="dashboard-empty-state">
+                        <h3>No incoming requests</h3>
+                        <p>When adopters or fosters reach out, their requests will appear here.</p>
                       </div>
-                    </article>
-                  ))}
-                  {receivedRequests.length === 0 ? <p>No incoming requests.</p> : null}
+                    ) : null}
+                  </div>
                 </div>
 
-                <h3 style={{ marginTop: '1rem' }}>My Requests</h3>
-                <div className="list-stack">
-                  {myRequests.map((request) => (
-                    <article key={request.id} className="list-item">
-                      <div>
-                        <h3>{request.pet?.name}</h3>
-                        <p>{request.message || 'No message provided.'}</p>
+                <div>
+                  <h3>My Requests</h3>
+                  <div className="list-stack">
+                    {myRequests.map((request) => (
+                      <article key={request.id} className="list-item list-item-rich">
+                        <div>
+                          <h3>{request.pet?.name}</h3>
+                          <p>{formatPetLine(request.pet)}</p>
+                          <p className="list-item-submeta">
+                            Contact: {request.pet?.owner?.name || 'Rescue team'} |{' '}
+                            {request.message || 'No message provided yet.'}
+                          </p>
+                        </div>
+                        <div className="inline-actions">
+                          <span className="status-pill">{request.status}</span>
+                          <Link className="inline-link" to={`/pets/${request.pet?.id}`}>
+                            Open listing
+                          </Link>
+                        </div>
+                      </article>
+                    ))}
+                    {myRequests.length === 0 ? (
+                      <div className="dashboard-empty-state">
+                        <h3>No outgoing requests</h3>
+                        <p>Start an adoption or foster conversation from any active pet profile.</p>
                       </div>
-                      <span className="status-pill">{request.status}</span>
-                    </article>
-                  ))}
-                  {myRequests.length === 0 ? <p>No outgoing requests.</p> : null}
+                    ) : null}
+                  </div>
                 </div>
               </motion.div>
             ) : null}
@@ -472,27 +626,58 @@ export default function DashboardPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
               >
-                <h2>Notifications</h2>
-                <button type="button" className="inline-link" onClick={activatePush}>
-                  {pushEnabled ? 'Push Enabled' : 'Enable Push Notifications'}
-                </button>
+                <div className="dashboard-panel-head dashboard-panel-head-compact">
+                  <div>
+                    <h3>In-app alerts</h3>
+                    <p className="dashboard-microcopy">
+                      Push notifications can mirror these updates on supported devices.
+                    </p>
+                  </div>
+                  <button type="button" className="inline-link" onClick={activatePush}>
+                    {pushEnabled ? 'Push Enabled' : 'Enable Push Notifications'}
+                  </button>
+                </div>
+
                 <div className="list-stack">
                   {notifications.map((notification) => (
-                    <article key={notification.id} className="list-item">
+                    <article
+                      key={notification.id}
+                      className={
+                        notification.isRead
+                          ? 'list-item list-item-rich notification-card'
+                          : 'list-item list-item-rich notification-card is-unread'
+                      }
+                    >
                       <div>
                         <h3>{notification.title}</h3>
                         <p>{notification.body}</p>
+                        {notification.link ? (
+                          <Link className="inline-link" to={notification.link}>
+                            Open related page
+                          </Link>
+                        ) : null}
                       </div>
-                      <button
-                        type="button"
-                        className="inline-link"
-                        onClick={() => markNotificationRead(notification.id)}
-                      >
-                        {notification.isRead ? 'Read' : 'Mark read'}
-                      </button>
+                      <div className="inline-actions">
+                        {!notification.isRead ? (
+                          <span className="status-pill notification-pill">New</span>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="inline-link"
+                          disabled={notification.isRead}
+                          onClick={() => markNotificationRead(notification.id)}
+                        >
+                          {notification.isRead ? 'Read' : 'Mark read'}
+                        </button>
+                      </div>
                     </article>
                   ))}
-                  {notifications.length === 0 ? <p>No notifications yet.</p> : null}
+                  {notifications.length === 0 ? (
+                    <div className="dashboard-empty-state">
+                      <h3>No notifications yet</h3>
+                      <p>Your moderation, request, and chat updates will appear here.</p>
+                    </div>
+                  ) : null}
                 </div>
               </motion.div>
             ) : null}
